@@ -1,0 +1,364 @@
+// EdgexCRM Prisma Schema
+// @MVP - Core tables for MVP implementation
+// @PHASE2 - Tables for Phase 2 features (scaffold only)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// @MVP: Authentication & Users
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(COUNSELLOR)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  assignedLeads    Lead[]    @relation("AssignedCounsellor")
+  createdLeads     Lead[]    @relation("CreatedBy")
+  tasks            Task[]    @relation("AssignedTo")
+  createdTasks     Task[]    @relation("TaskCreatedBy")
+  communications   Communication[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  COUNSELLOR
+  AGENT
+}
+
+// ============================================
+// @MVP: Contacts
+// ============================================
+
+model Contact {
+  id          String      @id @default(uuid())
+  type        ContactType
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  leads       Lead[]      @relation("LeadContact")
+  students    Student[]   @relation("StudentContact")
+
+  @@map("contacts")
+}
+
+enum ContactType {
+  STUDENT
+  PARENT
+  PARTNER
+  FRIEND
+  OTHER
+}
+
+// ============================================
+// @MVP: Leads
+// ============================================
+
+model Lead {
+  id              String      @id @default(uuid())
+  name            String
+  email           String?
+  phone           String?
+  source          LeadSource  @default(DIRECT)
+  status          LeadStatus  @default(NEW)
+  interestedIn    String?     // Course/program interested in
+  notes           String?
+
+  // Assignment
+  assignedToId    String?
+  assignedTo      User?       @relation("AssignedCounsellor", fields: [assignedToId], references: [id])
+
+  // Audit
+  createdById     String?
+  createdBy       User?       @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  convertedAt     DateTime?
+
+  // Relations
+  contactId       String?
+  contact         Contact?    @relation("LeadContact", fields: [contactId], references: [id])
+  student         Student?    // If converted
+  leadNotes       LeadNote[]
+  tasks           Task[]
+  documents       Document[]
+  communications  Communication[]
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+enum LeadSource {
+  DIRECT
+  REFERRAL
+  WEBSITE
+  SOCIAL_MEDIA
+  ADVERTISEMENT
+  PARTNER
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  FOLLOWUP
+  CONVERTED
+  LOST
+}
+
+model LeadNote {
+  id        String   @id @default(uuid())
+  content   String
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("lead_notes")
+}
+
+// ============================================
+// @MVP: Students & Applications
+// ============================================
+
+model Student {
+  id              String    @id @default(uuid())
+  name            String
+  email           String?
+  phone           String?
+  dateOfBirth     DateTime?
+  nationality     String?
+  passportNumber  String?
+  address         String?
+  notes           String?
+
+  // Converted from lead
+  leadId          String?   @unique
+  lead            Lead?     @relation(fields: [leadId], references: [id])
+
+  // Relations
+  contactId       String?
+  contact         Contact?  @relation("StudentContact", fields: [contactId], references: [id])
+  applications    Application[]
+  documents       Document[]
+  tasks           Task[]
+  communications  Communication[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("students")
+}
+
+model Application {
+  id              String            @id @default(uuid())
+  studentId       String
+  student         Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Application details
+  institution     String
+  program         String
+  intake          String?           // e.g., "Fall 2025"
+  status          ApplicationStatus @default(PENDING)
+  submittedAt     DateTime?
+  decisionAt      DateTime?
+  notes           String?
+
+  // Relations
+  documents       Document[]
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  @@map("applications")
+}
+
+enum ApplicationStatus {
+  PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  DEFERRED
+  WITHDRAWN
+}
+
+// ============================================
+// @MVP: Tasks
+// ============================================
+
+model Task {
+  id              String      @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus  @default(PENDING)
+  priority        TaskPriority @default(MEDIUM)
+  dueDate         DateTime?
+  completedAt     DateTime?
+
+  // Assignment
+  assignedToId    String?
+  assignedTo      User?       @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  // Linked entity (one of these)
+  leadId          String?
+  lead            Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  studentId       String?
+  student         Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Audit
+  createdById     String?
+  createdBy       User?       @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ============================================
+// @MVP: Documents
+// ============================================
+
+model Document {
+  id              String    @id @default(uuid())
+  name            String
+  fileName        String
+  mimeType        String
+  size            Int       // bytes
+  s3Key           String    // S3 object key
+
+  // Linked entity (one of these)
+  leadId          String?
+  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  studentId       String?
+  student         Student?  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  applicationId   String?
+  application     Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([studentId])
+  @@index([applicationId])
+  @@map("documents")
+}
+
+// ============================================
+// @MVP: Communications
+// ============================================
+
+model Communication {
+  id              String              @id @default(uuid())
+  type            CommunicationType
+  direction       CommunicationDirection @default(OUTBOUND)
+  subject         String?
+  content         String
+  status          CommunicationStatus @default(SENT)
+
+  // Channel-specific data
+  templateId      String?             // WhatsApp template ID
+  externalId      String?             // External message ID
+
+  // Linked entity (one of these)
+  leadId          String?
+  lead            Lead?               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  studentId       String?
+  student         Student?            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Sender
+  sentById        String?
+  sentBy          User?               @relation(fields: [sentById], references: [id])
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([leadId])
+  @@index([studentId])
+  @@index([type])
+  @@map("communications")
+}
+
+enum CommunicationType {
+  EMAIL
+  SMS
+  WHATSAPP
+  CALL
+  NOTE
+}
+
+enum CommunicationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CommunicationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ============================================
+// @MVP: Workflows
+// ============================================
+
+model Workflow {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  trigger     Json      // { event: string, condition: object }
+  actions     Json      // [{ type: string, payload: object }]
+  isActive    Boolean   @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("workflows")
+}

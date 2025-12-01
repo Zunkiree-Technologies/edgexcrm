@@ -1,0 +1,11 @@
+{
+  "parent_brain": "C:\\Users\\sadin\\OneDrive\\Desktop\\Simplifycodes\\sadin-stark-brain\\.sadin-stark",
+  "parent_type": "global",
+  "project_id": "edge-x-crm",
+  "project_name": "Edge-X CRM",
+  "instance_name": "Edge-X-CRM-Stark",
+  "created": "2025-12-01",
+  "relationship": "child",
+  "sync_patterns": true,
+  "inherit_user_profile": true
+}
