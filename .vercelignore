@@ -1,16 +1,6 @@
-# Ignore backend folder - deployed separately on Render
-apps/server/
-
-# Ignore shared package build artifacts
-packages/shared/dist/
-
 # Ignore documentation
 docs/
 
 # Ignore brain/claude folders
 .brain/
 .claude/
-
-# Ignore root config files not needed for frontend
-turbo.json
-pnpm-workspace.yaml
